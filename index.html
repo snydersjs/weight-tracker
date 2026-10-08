@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Weight Tracker</title>
+<link rel="apple-touch-icon" href="icon-weight-tracker.png">
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAeGdpHwhJs_0qkqtLMf4Z1LCSEodlcKok",
+    authDomain: "ztevez-apps.firebaseapp.com",
+    projectId: "ztevez-apps",
+    storageBucket: "ztevez-apps.firebasestorage.app",
+    messagingSenderId: "609437870016",
+    appId: "1:609437870016:web:29aed98b4b1d5e7bab0a25"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  window._wtDoc = doc(db, "weighttracker", "data");
+  window._fsGetDoc = getDoc;
+  window._fsSetDoc = setDoc;
+</script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f4f0; --surface: #ffffff; --surface2: #f0efe9; --border: #e2e0d8;
+    --text: #1a1a18; --text-mid: #6b6b60; --text-dim: #9e9d93;
+    --weight-color: #2563a8; --bmi-color: #b84c2a; --accent: #2563a8;
+    --success: #2a7a4a; --warn-border: #e8c840;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 15px; min-height: 100vh; }
+
+  #setup-banner { background: #fffbe6; border-bottom: 1px solid #e8c840; padding: 12px 24px; display: flex; align-items: center; gap: 12px; font-family: 'DM Mono', monospace; font-size: 11px; color: #8a7a20; flex-wrap: wrap; }
+  #setup-banner input { background: #fff; border: 1px solid #e8c840; color: #3a3000; padding: 6px 12px; font-family: 'DM Mono', monospace; font-size: 11px; width: 300px; outline: none; border-radius: 4px; }
+  #setup-banner button { background: #e8c840; border: none; color: #3a3000; padding: 6px 16px; font-family: 'DM Mono', monospace; font-size: 11px; cursor: pointer; border-radius: 4px; font-weight: 500; }
+
+  header { padding: 28px 32px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .header-left h1 { font-size: 22px; font-weight: 500; letter-spacing: -0.02em; }
+  .header-left p { font-size: 12px; color: var(--text-dim); margin-top: 2px; font-family: 'DM Mono', monospace; }
+  #sync-pill { font-family: 'DM Mono', monospace; font-size: 10px; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); color: var(--text-dim); letter-spacing: 0.05em; }
+  #sync-pill.synced { border-color: #86c9a0; color: var(--success); background: #f0faf4; }
+  #sync-pill.syncing { border-color: #e8c840; color: #8a7a20; background: #fffbe6; }
+  #sync-pill.error { border-color: #e08080; color: #8a2a2a; background: #fff0f0; }
+
+  main { padding: 24px 32px 60px; max-width: 960px; }
+
+  .entry-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px 28px; margin-bottom: 28px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+  .card-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 18px; }
+  .field-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-mid); margin-bottom: 6px; }
+  .entry-top-grid { display: grid; grid-template-columns: 160px 130px 130px 1fr; gap: 16px; align-items: end; margin-bottom: 16px; }
+  .activity-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+  .entry-card input[type="date"],
+  .entry-card input[type="number"],
+  .entry-card select {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 14px; font-size: 15px; font-family: 'DM Sans', sans-serif; outline: none;
+    border-radius: 8px; color-scheme: light; transition: border-color 0.15s;
+    appearance: none; -webkit-appearance: none;
+  }
+  .entry-card select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239e9d93'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
+  }
+  .entry-card input:focus, .entry-card select:focus { border-color: var(--accent); background: #fff; }
+  .btn-save { background: var(--accent); color: #fff; border: none; padding: 10px 24px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 8px; width: 100%; transition: background 0.15s; }
+  .btn-save:hover { background: #1d4f8a; }
+
+  #warn-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 100; align-items: center; justify-content: center; }
+  #warn-overlay.show { display: flex; }
+  #warn-box { background: #fff; border: 1px solid var(--warn-border); border-radius: 12px; padding: 28px 32px; max-width: 420px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+  #warn-box h3 { font-size: 16px; font-weight: 500; margin-bottom: 10px; }
+  #warn-box p { font-size: 14px; color: var(--text-mid); line-height: 1.6; margin-bottom: 20px; }
+  .warn-btns { display: flex; gap: 10px; justify-content: flex-end; }
+  .btn-cancel-warn { background: var(--surface2); border: 1px solid var(--border); color: var(--text-mid); padding: 8px 20px; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer; }
+  .btn-confirm-warn { background: var(--bmi-color); border: none; color: #fff; padding: 8px 20px; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer; font-weight: 500; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.03); }
+  .stat-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
+  .stat-value { font-size: 26px; font-weight: 300; letter-spacing: -0.03em; line-height: 1; }
+  .stat-value.weight { color: var(--weight-color); }
+  .stat-value.bmi { color: var(--bmi-color); }
+  .stat-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; font-family: 'DM Mono', monospace; }
+  .stat-sub.positive { color: var(--success); }
+  .stat-sub.negative { color: var(--bmi-color); }
+
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px 28px; margin-bottom: 28px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+  .chart-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; gap: 12px; }
+  .chart-title { font-size: 13px; font-weight: 500; color: var(--text); }
+  .chart-subtitle { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+  .chart-legends { display: flex; gap: 12px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-mid); flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; }
+  .chart-legend-item { display: flex; align-items: center; gap: 5px; }
+  .chart-legend-mobile { display: none; flex-wrap: wrap; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); font-family: "DM Mono", monospace; font-size: 10px; color: var(--text-mid); }
+  .legend-line { width: 14px; height: 2px; border-radius: 1px; flex-shrink: 0; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  canvas { max-height: 380px; }
+
+  .log-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px 28px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+  .log-header-row { display: grid; grid-template-columns: 130px 90px 70px 1fr 80px; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 4px; }
+  .log-row { display: grid; grid-template-columns: 130px 90px 70px 1fr 80px; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--surface2); align-items: center; font-size: 13px; }
+  .log-row:last-child { border-bottom: none; }
+  .log-date { color: var(--text-mid); font-family: 'DM Mono', monospace; font-size: 11px; }
+  .log-weight { color: var(--weight-color); font-weight: 500; }
+  .log-bmi { color: var(--bmi-color); font-weight: 500; }
+  .log-activities { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+  .act-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 10px; font-family: 'DM Mono', monospace; font-size: 9px; }
+  .log-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .btn-log-edit, .btn-log-del { background: none; border: 1px solid var(--border); font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; cursor: pointer; color: var(--text-dim); }
+  .btn-log-del:hover { border-color: #e08080; color: var(--bmi-color); }
+  .btn-log-edit:hover { border-color: #93b8e0; color: var(--weight-color); }
+
+  #toast { position: fixed; bottom: 24px; right: 24px; background: var(--text); color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 200; }
+  #toast.show { opacity: 1; }
+  .empty { text-align: center; padding: 48px 0; color: var(--text-dim); font-size: 14px; }
+
+  @media (max-width: 640px) {
+    header, main { padding-left: 16px; padding-right: 16px; }
+    .entry-top-grid { grid-template-columns: 1fr 1fr; }
+    .entry-top-grid > div:first-child { grid-column: 1 / -1; }
+    .entry-top-grid > div:last-child { grid-column: 1 / -1; }
+    .activity-row { grid-template-columns: 1fr 1fr; }
+    .stats-row { grid-template-columns: 1fr 1fr; }
+    .log-header-row, .log-row { grid-template-columns: 1fr 70px 55px 70px; }
+    .log-header-row > div:nth-child(4), .log-row > div:nth-child(4) { display: none; }
+    .chart-legends { display: none; }
+    .chart-legend-mobile { display: flex; }
+  }
+</style>
+</head>
+<body>
+
+
+<header>
+  <div class="header-left">
+    <h1>Weight Tracker</h1>
+    <p id="date-range-label">Loading...</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div id="sync-pill">NO KEY</div>
+    <button onclick="downloadBackup()" style="background:transparent;border:1px solid var(--border);color:var(--text-dim);padding:4px 14px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;border-radius:4px;">Backup</button>
+  </div>
+</header>
+
+<main>
+  <div class="entry-card">
+    <div class="card-label">Log Entry</div>
+    <div class="entry-top-grid">
+      <div><div class="field-label">Date</div><input type="date" id="f-date"></div>
+      <div><div class="field-label">Weight (lbs)</div><input type="number" id="f-weight" placeholder="0.0" step="0.1" min="50" max="500"></div>
+      <div><div class="field-label">BMI</div><input type="number" id="f-bmi" placeholder="0.0" step="0.1" min="10" max="60"></div>
+      <div><button class="btn-save" onclick="handleSave()">Save Entry</button></div>
+    </div>
+    <div class="activity-row">
+      <div><div class="field-label">Activity 1</div><select id="f-act1"><option value="">— None —</option></select></div>
+      <div><div class="field-label">Activity 2</div><select id="f-act2"><option value="">— None —</option></select></div>
+      <div><div class="field-label">Activity 3</div><select id="f-act3"><option value="">— None —</option></select></div>
+    </div>
+  </div>
+  <div id="content-area"></div>
+</main>
+
+<div id="warn-overlay">
+  <div id="warn-box">
+    <h3>Entry already exists</h3>
+    <p id="warn-msg"></p>
+    <div class="warn-btns">
+      <button class="btn-cancel-warn" onclick="dismissWarn()">Cancel</button>
+      <button class="btn-confirm-warn" onclick="confirmOverwrite()">Overwrite</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const ACTIVITIES = ["Walk","Bike","Hike","Weights","Volleyball","Tennis","Pickleball","Ski","Snowshoe","Other"];
+const ACT_COLORS = {
+  "Walk":"#4caf7d", "Bike":"#2196c4", "Hike":"#8b6914", "Weights":"#7b3fa0",
+  "Volleyball":"#e67e22", "Tennis":"#9aaf20", "Pickleball":"#00acc1",
+  "Ski":"#5c8de8", "Snowshoe":"#78909c", "Other":"#9e9d93"
+};
+
+let entries = [];
+let chartInstance = null;
+let pendingOverwrite = null;
+let editingDate = null;
+let dataLoaded = false;
+
+document.addEventListener("DOMContentLoaded", () => {
+  populateDropdowns();
+  setTodayDate();
+  loadFromCloud();
+  document.getElementById("f-date").addEventListener("change", onDateChange);
+});
+
+function setSyncStatus(text, state) {
+  const el = document.getElementById("sync-pill");
+  el.textContent = text; el.className = state;
+}
+
+async function loadFromCloud() {
+  setSyncStatus("LOADING", "syncing");
+  try {
+    const snap = await window._fsGetDoc(window._wtDoc);
+    if (snap.exists()) {
+      entries = snap.data().entries || [];
+    }
+    dataLoaded = true;
+    setSyncStatus("SYNCED", "synced");
+  } catch(e) {
+    setSyncStatus("ERROR", "error");
+    showToast("Sync error — check connection");
+  }
+  onDateChange();
+  renderContent();
+}
+
+async function saveToCloud() {
+  if (!dataLoaded) { showToast("Still loading — please try again in a moment"); return; }
+  setSyncStatus("SAVING", "syncing");
+  try {
+    await window._fsSetDoc(window._wtDoc, { entries });
+    setSyncStatus("SYNCED", "synced");
+  } catch(e) {
+    setSyncStatus("ERROR", "error");
+    showToast("Sync error — changes may not have saved");
+  }
+}
+
+function populateDropdowns() {
+  ["f-act1","f-act2","f-act3"].forEach(id => {
+    const sel = document.getElementById(id);
+    ACTIVITIES.forEach(a => {
+      const o = document.createElement("option");
+      o.value = a; o.textContent = a; sel.appendChild(o);
+    });
+  });
+}
+
+function setTodayDate() {
+  document.getElementById("f-date").value = toDateStr(new Date());
+  onDateChange();
+}
+
+function toDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function onDateChange() {
+  const date = document.getElementById("f-date").value;
+  const ex = entries.find(e => e.date === date);
+  if (ex) {
+    document.getElementById("f-weight").value = ex.weight;
+    document.getElementById("f-bmi").value = ex.bmi;
+    const acts = ex.activities || [];
+    document.getElementById("f-act1").value = acts[0] || "";
+    document.getElementById("f-act2").value = acts[1] || "";
+    document.getElementById("f-act3").value = acts[2] || "";
+    editingDate = date;
+  } else {
+    if (editingDate && editingDate !== date) {
+      ["f-weight","f-bmi","f-act1","f-act2","f-act3"].forEach(id => document.getElementById(id).value = "");
+    }
+    editingDate = null;
+  }
+}
+
+
+function getFormActs() {
+  return ["f-act1","f-act2","f-act3"].map(id => document.getElementById(id).value).filter(Boolean);
+}
+
+function handleSave() {
+  const date = document.getElementById("f-date").value;
+  const weight = parseFloat(document.getElementById("f-weight").value);
+  const bmi = parseFloat(document.getElementById("f-bmi").value);
+  const activities = getFormActs();
+  if (!date || isNaN(weight) || isNaN(bmi)) { showToast("Please enter date, weight, and BMI"); return; }
+  const ex = entries.find(e => e.date === date);
+  if (ex) {
+    const noChange = ex.weight === +weight.toFixed(1) && ex.bmi === +bmi.toFixed(1)
+      && JSON.stringify(ex.activities||[]) === JSON.stringify(activities);
+    if (noChange) { showToast("No changes to save"); return; }
+    pendingOverwrite = { date, weight, bmi, activities };
+    const exActs = (ex.activities||[]).join(", ") || "none";
+    const newActs = activities.join(", ") || "none";
+    document.getElementById("warn-msg").textContent =
+      `Update ${formatDate(date)}?\n\nCurrent: ${ex.weight} lbs / BMI ${ex.bmi} / ${exActs}\nNew: ${weight.toFixed(1)} lbs / BMI ${bmi.toFixed(1)} / ${newActs}`;
+    document.getElementById("warn-overlay").classList.add("show");
+    return;
+  }
+  commitEntry(date, weight, bmi, activities);
+}
+
+function confirmOverwrite() {
+  if (!pendingOverwrite) return;
+  commitEntry(pendingOverwrite.date, pendingOverwrite.weight, pendingOverwrite.bmi, pendingOverwrite.activities);
+  pendingOverwrite = null;
+  dismissWarn();
+}
+
+function dismissWarn() {
+  document.getElementById("warn-overlay").classList.remove("show");
+  pendingOverwrite = null;
+}
+
+function commitEntry(date, weight, bmi, activities) {
+  const entry = { id: date, date, weight: +weight.toFixed(1), bmi: +bmi.toFixed(1), activities };
+  const idx = entries.findIndex(e => e.date === date);
+  if (idx >= 0) { entries[idx] = entry; showToast("Entry updated"); }
+  else { entries.push(entry); showToast("Entry saved"); }
+  entries.sort((a,b) => a.date.localeCompare(b.date));
+  editingDate = date;
+  saveToCloud();
+  renderContent();
+}
+
+async function deleteEntry(date) {
+  if (!dataLoaded) { showToast("Still loading — please try again in a moment"); return; }
+  if (!confirm("Delete this entry? This cannot be undone.")) return;
+  entries = entries.filter(e => e.date !== date);
+  renderContent();
+  showToast("Entry deleted");
+  if (document.getElementById("f-date").value === date) {
+    ["f-weight","f-bmi","f-act1","f-act2","f-act3"].forEach(id => document.getElementById(id).value = "");
+    editingDate = null;
+  }
+  await saveToCloud();
+}
+
+function editEntry(date) {
+  document.getElementById("f-date").value = date;
+  onDateChange();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function getLast60() {
+  const t = new Date(), cutoff = new Date(t);
+  cutoff.setDate(cutoff.getDate() - 59);
+  return entries.filter(e => e.date >= toDateStr(cutoff)).sort((a,b) => a.date.localeCompare(b.date));
+}
+
+function formatDate(d) {
+  const [y,m,day] = d.split("-");
+  return `${MONTHS_SHORT[parseInt(m)-1]} ${parseInt(day)}, ${y}`;
+}
+
+function formatDateShort(d) {
+  const [y,m,day] = d.split("-");
+  return `${MONTHS_SHORT[parseInt(m)-1]} ${parseInt(day)}`;
+}
+
+function linReg(pts) {
+  const n = pts.length; if (n < 2) return null;
+  let sx=0,sy=0,sxy=0,sx2=0;
+  pts.forEach(([x,y])=>{ sx+=x;sy+=y;sxy+=x*y;sx2+=x*x; });
+  const slope = (n*sxy-sx*sy)/(n*sx2-sx*sx);
+  return { slope, intercept: (sy-slope*sx)/n };
+}
+
+function proj(reg, x) { return +(reg.intercept + reg.slope * x).toFixed(1); }
+
+function renderContent() {
+  const area = document.getElementById("content-area");
+  const w60 = getLast60();
+  const today = new Date();
+  const start = new Date(today); start.setDate(start.getDate()-59);
+  const end = new Date(today); end.setDate(end.getDate()+30);
+  document.getElementById("date-range-label").textContent =
+    `${formatDateShort(toDateStr(start))} — ${formatDateShort(toDateStr(end))} · 90-day view`;
+
+  if (!entries.length) {
+    area.innerHTML = `<div class="empty">No entries yet. Log your first measurement above.</div>`;
+    return;
+  }
+
+  const latest = w60.length ? w60[w60.length-1] : entries[entries.length-1];
+  const oldest = w60.length > 1 ? w60[0] : null;
+  const wChange = oldest ? +(latest.weight - oldest.weight).toFixed(1) : null;
+
+  const allDates = [];
+  for (let i = -59; i <= 30; i++) { const d = new Date(today); d.setDate(d.getDate()+i); allDates.push(toDateStr(d)); }
+  const todayIdx = allDates.indexOf(toDateStr(today));
+
+  const wData = allDates.map(d => { const e=w60.find(x=>x.date===d); return e?e.weight:null; });
+  const bData = allDates.map(d => { const e=w60.find(x=>x.date===d); return e?e.bmi:null; });
+
+  const wPts = w60.map(e=>{ const i=allDates.indexOf(e.date); return i>=0?[i,e.weight]:null; }).filter(Boolean);
+  const bPts = w60.map(e=>{ const i=allDates.indexOf(e.date); return i>=0?[i,e.bmi]:null; }).filter(Boolean);
+  const wReg = linReg(wPts), bReg = linReg(bPts);
+  const wTrend = wReg ? allDates.map((_,i)=>proj(wReg,i)) : [];
+  const bTrend = bReg ? allDates.map((_,i)=>proj(bReg,i)) : [];
+  const projW = wReg ? proj(wReg,allDates.length-1) : null;
+  const projB = bReg ? proj(bReg,allDates.length-1) : null;
+  const lastIdx = allDates.length - 1;
+  const labels = allDates.map((d,i) => (i % 5 === 0 || i === lastIdx) ? formatDateShort(d) : "");
+
+  const actByDate = {};
+  w60.forEach(e => { if (e.activities && e.activities.length) actByDate[e.date] = e.activities; });
+  const usedActs = [...new Set(w60.flatMap(e=>e.activities||[]))].filter(Boolean);
+
+  area.innerHTML = `
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Current Weight</div><div class="stat-value weight">${latest.weight}</div><div class="stat-sub">lbs · ${formatDateShort(latest.date)}</div></div>
+      <div class="stat-card"><div class="stat-label">Current BMI</div><div class="stat-value bmi">${latest.bmi}</div><div class="stat-sub">as of ${formatDateShort(latest.date)}</div></div>
+      <div class="stat-card"><div class="stat-label">60-Day Change</div><div class="stat-value weight" style="font-size:22px">${wChange!==null?(wChange>0?'+':'')+wChange:'—'}</div><div class="stat-sub ${wChange<0?'positive':wChange>0?'negative':''}">lbs ${wChange<0?'▼':wChange>0?'▲':''}</div></div>
+      <div class="stat-card"><div class="stat-label">Projected (30d)</div><div class="stat-value weight" style="font-size:22px">${projW!==null?projW:'—'}</div><div class="stat-sub">lbs · BMI ${projB!==null?projB:'—'}</div></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Weight &amp; BMI — Rolling 90-Day View</div>
+          <div class="chart-subtitle">Solid = actual · Dashed = trend · Shaded = projection · Dots = activity</div>
+        </div>
+        <div class="chart-legends">
+          <div class="chart-legend-item"><div class="legend-line" style="background:var(--weight-color)"></div>Weight</div>
+          <div class="chart-legend-item"><div class="legend-line" style="background:var(--bmi-color)"></div>BMI</div>
+          ${usedActs.map(a=>`<div class="chart-legend-item"><div class="legend-dot" style="background:${ACT_COLORS[a]}"></div>${a}</div>`).join("")}
+        </div>
+      </div>
+      <canvas id="main-chart"></canvas>
+      <div class="chart-legend-mobile" id="mobile-legend"></div>
+    </div>
+
+    <div class="log-card">
+      <div class="card-label" style="margin-bottom:16px">Recent Entries</div>
+      <div class="log-header-row"><div>Date</div><div>Weight</div><div>BMI</div><div>Activities</div><div></div></div>
+      ${[...w60].reverse().slice(0,30).map(e=>`
+        <div class="log-row">
+          <div class="log-date">${formatDate(e.date)}</div>
+          <div class="log-weight">${e.weight} lbs</div>
+          <div class="log-bmi">${e.bmi}</div>
+          <div class="log-activities">${(e.activities||[]).length
+            ? (e.activities||[]).map(a=>`<span class="act-badge" style="background:${ACT_COLORS[a]}18;color:${ACT_COLORS[a]};border:1px solid ${ACT_COLORS[a]}40"><span style="width:5px;height:5px;border-radius:50%;background:${ACT_COLORS[a]};display:inline-block;flex-shrink:0"></span>${a}</span>`).join("")
+            : `<span style="color:var(--text-dim);font-size:11px;font-family:'DM Mono',monospace">—</span>`}
+          </div>
+          <div class="log-actions">
+            <button class="btn-log-edit" onclick="editEntry('${e.date}')">Edit</button>
+            <button class="btn-log-del" onclick="deleteEntry('${e.date}')">Del</button>
+          </div>
+        </div>`).join("")}
+    </div>
+  `;
+
+  buildChart(labels, wData, bData, wTrend, bTrend, todayIdx, actByDate, allDates);
+  updateMobileLegend(usedActs);
+}
+
+function buildChart(labels, wData, bData, wTrend, bTrend, todayIdx, actByDate, allDates) {
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+  const ctx = document.getElementById("main-chart").getContext("2d");
+
+
+  // Y-axis min spans — rounded to whole numbers, minimum 10lb / 5 BMI spread
+  const wVals = wData.filter(v=>v!==null);
+  const bVals = bData.filter(v=>v!==null);
+  const wMin = wVals.length ? Math.min(...wVals) : 180;
+  const wMax = wVals.length ? Math.max(...wVals) : 220;
+  const bMin = bVals.length ? Math.min(...bVals) : 20;
+  const bMax = bVals.length ? Math.max(...bVals) : 35;
+  const wCenter = (wMax + wMin) / 2;
+  const bCenter = (bMax + bMin) / 2;
+  const wAxisMin = Math.floor(Math.min(wMin - 1, wCenter - 5));
+  const wAxisMax = Math.ceil(Math.max(wMax + 1, wCenter + 5));
+  const bAxisMin = Math.floor(Math.min(bMin - 0.5, bCenter - 2.5));
+  const bAxisMax = Math.ceil(Math.max(bMax + 0.5, bCenter + 2.5));
+
+  // Trend lines — full arrays so Chart.js can draw smooth curves end-to-end
+  const wTA = allDates.map((d,i) => (wReg && i <= todayIdx) ? proj(wReg,i) : null);
+  const wTP = allDates.map((d,i) => (wReg && i >= todayIdx) ? proj(wReg,i) : null);
+  const bTA = allDates.map((d,i) => (bReg && i <= todayIdx) ? proj(bReg,i) : null);
+  const bTP = allDates.map((d,i) => (bReg && i >= todayIdx) ? proj(bReg,i) : null);
+
+  const maxStack = Math.max(0, ...Object.values(actByDate).map(a=>a.length));
+  const tickHeight = 20;
+  const extraPad = maxStack > 0 ? tickHeight + 8 + maxStack * 14 : 8;
+
+  const dotsPlugin = {
+    id: "actDots",
+    afterDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea) return;
+      const r = 5;
+      // Position dots below the x-axis label area
+      const axisBottom = chart.canvas.height - chart.options.layout.padding.bottom + 4;
+      const gap = 13;
+      allDates.forEach((d, i) => {
+        const acts = actByDate[d] || [];
+        if (!acts.length) return;
+        const x = scales.x.getPixelForValue(i);
+        acts.forEach((act, si) => {
+          ctx.beginPath();
+          ctx.arc(x, axisBottom + si * gap, r, 0, Math.PI*2);
+          ctx.fillStyle = ACT_COLORS[act] || "#999";
+          ctx.fill();
+        });
+      });
+    }
+  };
+
+  const shadePlugin = {
+    id: "shade",
+    beforeDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea) return;
+      const x0 = scales.x.getPixelForValue(todayIdx);
+      ctx.save();
+      ctx.fillStyle = "rgba(37,99,168,0.035)";
+      ctx.fillRect(x0, chartArea.top, chartArea.right-x0, chartArea.bottom-chartArea.top);
+      ctx.beginPath(); ctx.strokeStyle = "rgba(37,99,168,0.2)"; ctx.lineWidth = 1;
+      ctx.setLineDash([4,4]); ctx.moveTo(x0,chartArea.top); ctx.lineTo(x0,chartArea.bottom); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
+    }
+  };
+
+  chartInstance = new Chart(ctx, {
+    type: "line",
+    plugins: [shadePlugin, dotsPlugin],
+    data: {
+      labels,
+      datasets: [
+        { label:"Weight", data:wData, borderColor:"#2563a8", backgroundColor:"rgba(37,99,168,0.05)", borderWidth:2, pointRadius:3, pointHoverRadius:5, pointBackgroundColor:"#2563a8", tension:0.4, spanGaps:false, yAxisID:"yW" },
+        { label:"W Trend", data:wTA, borderColor:"rgba(37,99,168,0.4)", borderWidth:1.5, borderDash:[6,3], pointRadius:0, tension:0.4, spanGaps:true, yAxisID:"yW" },
+        { label:"W Proj", data:wTP, borderColor:"rgba(37,99,168,0.22)", borderWidth:1.5, borderDash:[3,4], pointRadius:0, tension:0.4, spanGaps:true, yAxisID:"yW" },
+        { label:"BMI", data:bData, borderColor:"#b84c2a", backgroundColor:"rgba(184,76,42,0.04)", borderWidth:2, pointRadius:3, pointHoverRadius:5, pointBackgroundColor:"#b84c2a", tension:0.4, spanGaps:false, yAxisID:"yB" },
+        { label:"B Trend", data:bTA, borderColor:"rgba(184,76,42,0.4)", borderWidth:1.5, borderDash:[6,3], pointRadius:0, tension:0.4, spanGaps:true, yAxisID:"yB" },
+        { label:"B Proj", data:bTP, borderColor:"rgba(184,76,42,0.22)", borderWidth:1.5, borderDash:[3,4], pointRadius:0, tension:0.4, spanGaps:true, yAxisID:"yB" },
+      ]
+    },
+    options: {
+      responsive: true,
+      layout: { padding: { bottom: extraPad } },
+      interaction: { mode:"index", intersect:false },
+      plugins: {
+        legend: { display:false },
+        tooltip: {
+          backgroundColor:"#fff", borderColor:"#e2e0d8", borderWidth:1,
+          titleColor:"#1a1a18", bodyColor:"#6b6b60", padding:12,
+          callbacks: {
+            label(c) {
+              if (c.dataset.label.includes("Trend")||c.dataset.label.includes("Proj")) return null;
+              if (c.parsed.y===null) return null;
+              return c.dataset.label==="Weight" ? `  Weight: ${c.parsed.y} lbs` : `  BMI: ${c.parsed.y}`;
+            },
+            afterBody(items) {
+              const d = allDates[items[0]?.dataIndex];
+              const acts = actByDate[d];
+              return acts && acts.length ? [`  Activity: ${acts.join(", ")}`] : [];
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid:{color:"rgba(0,0,0,0.04)"}, ticks:{font:{family:"'DM Mono'",size:10},color:"#9e9d93",maxRotation:0}, border:{color:"#e2e0d8"} },
+        yW: { type:"linear", position:"left", min: wAxisMin, max: wAxisMax, grid:{color:"rgba(0,0,0,0.04)"}, ticks:{font:{family:"'DM Mono'",size:10},color:"#2563a8"}, border:{color:"#e2e0d8"} },
+        yB: { type:"linear", position:"right", min: bAxisMin, max: bAxisMax, grid:{drawOnChartArea:false}, ticks:{font:{family:"'DM Mono'",size:10},color:"#b84c2a"}, border:{color:"#e2e0d8"} }
+      }
+    }
+  });
+}
+
+function updateMobileLegend(usedActs) {
+  const el = document.getElementById("mobile-legend");
+  if (!el) return;
+  el.innerHTML = [
+    {label:"Weight", color:"#2563a8", line:true},
+    {label:"BMI", color:"#b84c2a", line:true},
+    ...usedActs.map(a => ({label:a, color:ACT_COLORS[a]||"#999", line:false}))
+  ].map(item => `<div class="chart-legend-item">
+    ${item.line
+      ? `<div style="width:14px;height:2px;border-radius:1px;background:${item.color};flex-shrink:0"></div>`
+      : `<div style="width:8px;height:8px;border-radius:50%;background:${item.color};flex-shrink:0"></div>`}
+    ${item.label}
+  </div>`).join("");
+}
+
+function downloadBackup() {
+  if (!entries.length) { showToast("No entries to back up"); return; }
+  const date = new Date().toISOString().split("T")[0];
+  const blob = new Blob([JSON.stringify({ exported: date, entries }, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `weight-tracker-backup-${date}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast("Backup downloaded");
+}
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2500);
+}
+</script>
+</body>
+</html>
