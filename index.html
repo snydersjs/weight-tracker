@@ -452,11 +452,11 @@ function renderContent() {
     </div>
   `;
 
-  buildChart(labels, wData, bData, wTrend, bTrend, todayIdx, actByDate, allDates);
+  buildChart(labels, wData, bData, wReg, bReg, todayIdx, actByDate, allDates);
   updateMobileLegend(usedActs);
 }
 
-function buildChart(labels, wData, bData, wTrend, bTrend, todayIdx, actByDate, allDates) {
+function buildChart(labels, wData, bData, wReg, bReg, todayIdx, actByDate, allDates) {
   if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
   const ctx = document.getElementById("main-chart").getContext("2d");
 
@@ -492,7 +492,7 @@ function buildChart(labels, wData, bData, wTrend, bTrend, todayIdx, actByDate, a
       if (!chartArea) return;
       const r = 5;
       // Position dots below the x-axis label area
-      const axisBottom = chart.canvas.height - chart.options.layout.padding.bottom + 4;
+      const axisBottom = chart.height - chart.options.layout.padding.bottom + 4;
       const gap = 13;
       allDates.forEach((d, i) => {
         const acts = actByDate[d] || [];
